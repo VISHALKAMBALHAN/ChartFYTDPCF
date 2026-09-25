@@ -1,0 +1,723 @@
+/* Main Container */
+.fytd-control {
+  box-sizing: border-box;
+  color: #323130;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
+  background: #ffffff;
+  height: 100vh;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: text;
+}
+
+.fytd-control * {
+  box-sizing: border-box;
+}
+
+/* -------------------------------------------------------------
+   Top Command Bar
+   ------------------------------------------------------------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  min-height: 52px;
+  padding: 0 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #edebe9;
+}
+
+.view-title-group {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+
+.view-title-group:hover {
+  background: #f3f2f1;
+}
+
+.view-title {
+  color: #11100f;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.title-chevron {
+  color: #0078d4;
+  font-size: 14px;
+  margin-left: 6px;
+  margin-top: 2px;
+}
+
+.topbar-commands {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.command-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #323130;
+  font-size: 13px;
+  font-weight: 400;
+  padding: 6px 10px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.command-btn:hover {
+  background: #f3f2f1;
+}
+
+.cmd-icon {
+  color: #0078d4;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.search-box-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  color: #605e5c;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.keyword-search {
+  width: 220px;
+  height: 32px;
+  padding: 0 10px 0 32px;
+  border: 1px solid #8a8886;
+  border-radius: 2px;
+  font-size: 13px;
+  color: #323130;
+  outline: none;
+  background: #ffffff;
+  transition: border-color 0.15s ease;
+}
+
+.keyword-search:focus {
+  border-color: #0078d4;
+  outline: 1px solid #0078d4;
+}
+
+.keyword-search::placeholder {
+  color: #605e5c;
+}
+
+/* -------------------------------------------------------------
+   Split Layout: Chart Pane (Left) + Records Pane (Right)
+   ------------------------------------------------------------- */
+.comparison-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  flex: 1;
+  min-height: 0;
+  background: #ffffff;
+}
+
+@media (min-width: 1400px) {
+  .comparison-layout {
+    grid-template-columns: 360px 1fr;
+  }
+}
+
+/* -------------------------------------------------------------
+   Left Chart Pane
+   ------------------------------------------------------------- */
+.chart-pane {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #edebe9;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid #edebe9;
+  background: #ffffff;
+  position: relative;
+}
+
+.chart-selector-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.chart-selector-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: #11100f;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  transition: background 0.15s ease;
+}
+
+.chart-selector-btn:hover {
+  background: #f3f2f1;
+}
+
+.chart-selector-title {
+  color: #201f1e;
+  font-weight: 600;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-selector-chevron {
+  display: inline-flex;
+  align-items: center;
+  color: #605e5c;
+  margin-top: 1px;
+}
+
+.chart-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid #d2d0ce;
+  border-radius: 2px;
+  box-shadow: 0 6.4px 14.4px 0 rgba(0, 0, 0, 0.132), 0 1.2px 3.6px 0 rgba(0, 0, 0, 0.108);
+  min-width: 320px;
+  max-height: 380px;
+  overflow-y: auto;
+  z-index: 1000;
+  padding: 4px 0;
+}
+
+.chart-dropdown-item {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #323130;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s ease;
+}
+
+.chart-dropdown-item:hover {
+  background: #f3f2f1;
+  color: #11100f;
+}
+
+.chart-dropdown-item.selected {
+  background: #edebe9;
+  font-weight: 600;
+  color: #0078d4;
+}
+
+.charts-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.renewal-group {
+  width: 30%;
+}
+
+
+
+.chart-inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 16px 12px 12px 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chart-body {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  flex: 1;
+  min-height: 280px;
+  max-height: 380px;
+  position: relative;
+}
+
+.y-axis-title {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #605e5c;
+  padding-right: 6px;
+  white-space: nowrap;
+}
+
+.plot-wrapper {
+  display: flex;
+  flex: 1;
+  position: relative;
+}
+
+.y-axis-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-right: 8px;
+  font-size: 10px;
+  color: #605e5c;
+  text-align: right;
+  min-width: 90px;
+  user-select: none;
+}
+
+.y-tick {
+  line-height: 1;
+}
+
+.plot-area {
+  position: relative;
+  flex: 1;
+  border-left: 1px solid #8a8886;
+  border-bottom: 1px solid #8a8886;
+  min-height: 100%;
+}
+
+.grid-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.grid-line {
+  border-top: 1px dashed #edebe9;
+  width: 100%;
+}
+
+.grid-line:last-child {
+  border-top: none;
+}
+
+.bar-groups-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  padding: 0 8px;
+}
+
+.status-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  width: 28%;
+}
+
+.bars-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 100%;
+  width: 100%;
+  padding-bottom: 2px;
+}
+
+.bar-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  width: 14px;
+  position: relative;
+}
+
+.bar-column.selected .chart-bar {
+  filter: brightness(0.85);
+  box-shadow: 0 0 0 2px #0078d4;
+}
+
+.bar-value-label {
+  position: absolute;
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 600;
+  color: #323130;
+  transform: translate(-50%, -100%);
+  left: 50%;
+  margin-top: -3px;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.bar-column.previous .bar-value-label {
+  top: 32%; /* Positioned nicely above Won previous bar */
+}
+
+.bar-column.current .bar-value-label {
+  top: 6%; /* Positioned nicely above Won current bar */
+}
+
+.chart-bar {
+  width: 100%;
+  border: none;
+  border-radius: 2px 2px 0 0;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  padding: 0;
+}
+
+.chart-bar.previous {
+  background-color: #6b83e8; /* Periwinkle blue from screenshot */
+}
+
+.chart-bar.current {
+  background-color: #eb008b; /* Vibrant pink / fuchsia from screenshot */
+}
+
+.chart-bar:hover {
+  opacity: 0.85;
+}
+
+.category-label {
+  font-size: 11px;
+  color: #323130;
+  margin-top: 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.x-axis-title {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #605e5c;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-top: 4px;
+  padding-left: 24px;
+  font-size: 11px;
+  color: #323130;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-bullet {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.prev-bullet {
+  background-color: #6b83e8;
+}
+
+.curr-bullet {
+  background-color: #eb008b;
+}
+
+/* -------------------------------------------------------------
+   Right Records Pane (Fluent UI Table)
+   ------------------------------------------------------------- */
+.records-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.fluent-grid-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.fluent-table-wrapper {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.fluent-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+}
+
+.fluent-table thead {
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 10;
+}
+
+.fluent-table th {
+  padding: 8px 10px;
+  border-bottom: 1px solid #edebe9;
+  font-weight: 600;
+  color: #323130;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.th-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.th-sort {
+  font-size: 12px;
+  color: #0078d4;
+}
+
+.th-chevron {
+  font-size: 10px;
+  color: #605e5c;
+}
+
+.fluent-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f3f2f1;
+  color: #323130;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 220px;
+}
+
+.fluent-row:hover {
+  background-color: #f8f8f8;
+}
+
+.fluent-row.selected {
+  background-color: #eff6fc;
+}
+
+.col-checkbox {
+  width: 36px;
+  min-width: 36px;
+  text-align: center;
+  padding: 8px 6px !important;
+}
+
+.fluent-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #0078d4;
+  cursor: pointer;
+  margin: 0;
+}
+
+.fluent-link {
+  color: #0067b8;
+  text-decoration: none;
+  font-weight: 400;
+}
+
+.fluent-link:hover {
+  color: #004578;
+  text-decoration: underline;
+}
+
+.col-revenue {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-cell {
+  text-align: center;
+  padding: 40px !important;
+  color: #605e5c;
+  font-style: italic;
+}
+
+/* Footer / Status Bar */
+.fluent-grid-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-top: 1px solid #edebe9;
+  background: #ffffff;
+  font-size: 12px;
+  color: #605e5c;
+}
+
+.fluent-rows-count {
+  font-weight: 400;
+  color: #323130;
+}
+
+.fluent-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pager-button {
+  background: transparent;
+  border: 1px solid #d2d0ce;
+  border-radius: 2px;
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  color: #323130;
+}
+
+.pager-button:hover:not(:disabled) {
+  background: #f3f2f1;
+}
+
+.pager-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pager-indicator {
+  font-size: 11px;
+}
+
+/* Loading & Error States */
+.message, .error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 14px;
+  color: #605e5c;
+}
+
+
+.error {
+  color: #a4262c;
+  background-color: #fde7e9;
+  padding: 20px;
+}
+
+/* ── Chart context menu (⋮ More options) ─────────────────────────────── */
+.chart-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chart-context-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #d2d0ce;
+  border-radius: 2px;
+  box-shadow: 0 6.4px 14.4px 0 rgba(0, 0, 0, 0.132),
+              0 1.2px 3.6px 0 rgba(0, 0, 0, 0.108);
+  min-width: 160px;
+  z-index: 1100;
+  padding: 4px 0;
+}
+
+.chart-ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #323130;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.1s ease;
+}
+
+.chart-ctx-item:hover {
+  background: #f3f2f1;
+  color: #11100f;
+}
+
+.chart-ctx-item:focus-visible {
+  outline: 2px solid #0078d4;
+  outline-offset: -2px;
+}
+
+.ctx-item-icon {
+  display: flex;
+  align-items: center;
+  color: #605e5c;
+  flex-shrink: 0;
+}
+

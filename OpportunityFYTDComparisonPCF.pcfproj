@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <Name>OpportunityFYTDComparisonPCF</Name>
+    <ProjectGuid>9cd70142-69df-46c5-9112-c40fbf2e977e</ProjectGuid>
+    <OutputPath>$(MSBuildThisFileDirectory)out\controls</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.PowerApps.MSBuild.Pcf" Version="1.51.1" GeneratePathProperty="true" />
+  </ItemGroup>
+</Project>

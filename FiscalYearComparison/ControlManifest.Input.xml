@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest>
+  <control namespace="Contoso.PCF" constructor="OpportunityFYTDComparison" version="1.0.2" display-name-key="Opportunity FYTD Comparison" description-key="Fiscal year-to-date Opportunity comparison with controlled drill-down" control-type="standard">
+    <data-set name="opportunities" display-name-key="Opportunities" cds-data-set-options="displayCommandBar:true;displayViewSelector:true;displayQuickFind:true" />
+    <property name="fiscalYearStartMonth" display-name-key="Fiscal Year Start Month" description-key="1 through 12; April is 4" of-type="Whole.None" usage="input" required="false" default-value="4" />
+    <property name="fiscalYearStartDay" display-name-key="Fiscal Year Start Day" description-key="Day within the fiscal start month" of-type="Whole.None" usage="input" required="false" default-value="1" />
+    <property name="revenueField" display-name-key="Revenue Field" of-type="SingleLine.Text" usage="input" required="false" default-value="actualvalue" />
+    <property name="closeDateField" display-name-key="Close Date Field" of-type="SingleLine.Text" usage="input" required="false" default-value="actualclosedate" />
+    <property name="statusField" display-name-key="Status Field" of-type="SingleLine.Text" usage="input" required="false" default-value="statecode" />
+    <property name="wonStatusValue" display-name-key="Won Status Value" of-type="Whole.None" usage="input" required="false" default-value="1" />
+    <resources>
+      <code path="index.ts" order="1" />
+      <css path="css/OpportunityFYTDComparison.css" order="1" />
+    </resources>
+    <feature-usage>
+      <uses-feature name="WebAPI" required="true" />
+    </feature-usage>
+  </control>
+</manifest>
