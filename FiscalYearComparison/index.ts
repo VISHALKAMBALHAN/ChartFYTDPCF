@@ -62,6 +62,7 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
   private page = 1;
   private more = false;
   private search = "";
+  private pagingCookie?: string;       // Dataverse FetchXML paging cookie for page > 1
   private service?: OpportunityService;
   private destroyed = false;
 
@@ -150,11 +151,13 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
         this.selectedStatus,
         this.page,
         25,
-        this.search
+        this.search,
+        this.page === 1 ? undefined : this.pagingCookie
       );
       this.detailRows = result.rows;
       this.totalCountEstimate = result.totalCountEstimate;
       this.more = result.more;
+      this.pagingCookie = result.pagingCookie;
       if (!this.destroyed) {
         this.render();
       }
@@ -171,7 +174,9 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
       this.selectedPeriodKey = key;
       this.selectedStatus = status;
     }
+    // Reset paging state when filter changes
     this.page = 1;
+    this.pagingCookie = undefined;
     this.loadDetails();
   }
 
@@ -247,12 +252,14 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
       if (e.key === "Enter") {
         this.search = keywordInput.value.trim();
         this.page = 1;
+        this.pagingCookie = undefined;  // reset cookie on new search
         this.loadDetails();
       }
     };
     keywordInput.onchange = () => {
       this.search = keywordInput.value.trim();
       this.page = 1;
+      this.pagingCookie = undefined;  // reset cookie on new search
       this.loadDetails();
     };
 
@@ -486,6 +493,11 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
       {
         refresh: () => this.loadDetails(),
         changePage: (newPage: number) => {
+          // When going back to page 1, clear the stored cookie so
+          // Dataverse returns the first page cleanly.
+          if (newPage === 1) {
+            this.pagingCookie = undefined;
+          }
           this.page = newPage;
           this.loadDetails();
         }
