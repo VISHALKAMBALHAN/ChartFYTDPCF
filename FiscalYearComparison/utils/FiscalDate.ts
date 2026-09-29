@@ -282,24 +282,32 @@ export function getPreviousFYTDStartDate(
  * Previous FYTD end.
  *
  * IMPORTANT:
- * The previous period ends on the CURRENT DATE,
- * not the equivalent date from the previous calendar year.
+ * The previous period ends on the same calendar date in the
+ * previous calendar year. If that date doesn't exist (for example,
+ * February 29), use the last day of that month.
  *
  * Example:
  * Today = 25-Sep-2026
  *
  * Previous FYTD:
- * 01-Apr-2025 -> 25-Sep-2026
+ * 01-Apr-2025 -> 25-Sep-2025
  */
 export function getPreviousFYTDEndDate(
   today = new Date(),
   startMonth = 4,
   startDay = 1
 ): Date {
+  const previousYear = today.getFullYear() - 1;
+  const lastDayOfMonth = new Date(
+    previousYear,
+    today.getMonth() + 1,
+    0
+  ).getDate();
+
   return dateAtMidnight(
-    today.getFullYear(),
+    previousYear,
     today.getMonth(),
-    today.getDate()
+    Math.min(today.getDate(), lastDayOfMonth)
   );
 }
 
@@ -312,7 +320,7 @@ export function getPreviousFYTDEndDate(
  *   01-Apr-2026 -> 25-Sep-2026
  *
  * Previous:
- *   01-Apr-2025 -> 25-Sep-2026
+ *   01-Apr-2025 -> 25-Sep-2025
  */
 export function getFYTDPeriods(
   today = new Date(),

@@ -293,13 +293,31 @@ const escapeXml = (text: string) =>
 const fetch = (xml: string) =>
   `?fetchXml=${encodeURIComponent(xml)}`;
 
-const decodeXmlEntities = (text: string): string =>
-  text
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, "&");
+/**
+ * Convert the FetchXML paging-cookie wrapper returned by Dataverse into
+ * the inner cookie expected by the next FetchXML request. Dataverse URL
+ * encodes the inner cookie twice inside the wrapper attribute.
+ */
+const getFetchXmlPagingCookie = (cookie: string | undefined): string | undefined => {
+  if (!cookie) {
+    return undefined;
+  }
+
+  const parser = new DOMParser();
+  const wrapper = parser.parseFromString(cookie, "text/xml");
+  const encodedCookie = wrapper.documentElement.getAttribute("pagingcookie");
+  if (!encodedCookie) {
+    return cookie;
+  }
+
+  const innerCookie = decodeURIComponent(decodeURIComponent(encodedCookie));
+  const parsedInnerCookie = parser.parseFromString(innerCookie, "text/xml");
+  if (parsedInnerCookie.getElementsByTagName("parsererror").length) {
+    throw new Error("Dataverse returned an invalid FetchXML paging cookie.");
+  }
+
+  return new XMLSerializer().serializeToString(parsedInnerCookie.documentElement);
+};
 
 const getFormatted = (
   row: Record<string, unknown>,
@@ -761,13 +779,13 @@ export class OpportunityService {
      *
      * Example:
      *
-     * Current FYTD
-     * 01-Apr-2025 -> 25-Sep-2026
+    * Current FYTD: 01-Apr-2026 -> 25-Sep-2026
+    * Previous FYTD: 01-Apr-2025 -> 25-Sep-2025
      *
      * The resulting query will contain:
      *
-     * actualclosedate >= 2025-04-01
-     * actualclosedate <= 2026-09-25
+    * actualclosedate >= 2026-04-01
+    * actualclosedate <= 2026-09-25
      *
      * It will NOT use "in-fiscal-year".
      *
@@ -787,7 +805,7 @@ export class OpportunityService {
     // encodeURIComponent is NOT applied here – FetchXML expects the
     // raw XML-attribute-escaped value that Dataverse gave us.
     const cookieAttr = pagingCookie
-      ? ` paging-cookie='${escapeXml(decodeXmlEntities(pagingCookie))}'`
+      ? ` paging-cookie='${escapeXml(pagingCookie)}'`
       : "";
 
     const xml = `
@@ -829,6 +847,8 @@ export class OpportunityService {
     )}'
             descending='true'
           />
+
+          <order attribute='opportunityid' descending='true'/>
 
           ${this.filter(period, status)}
 
@@ -1022,40 +1042,30 @@ export class OpportunityService {
        * We decode it and hand it back as a plain string. The caller
        * stores it and passes it as `pagingCookie` on the next call.
        */
-      let nextCookie: string | undefined;
+      let rawPagingCookie =
+        (result as unknown as { fetchXmlPagingCookie?: string })
+          .fetchXmlPagingCookie;
 
-      if (result.nextLink) {
+      // Some PCF Web API hosts expose the FetchXML continuation only inside
+      // nextLink. Its $skiptoken contains the same paging-cookie wrapper.
+      if (!rawPagingCookie && result.nextLink) {
         try {
-          const url = new URL(
-            result.nextLink.startsWith("http")
-              ? result.nextLink
-              : `https://placeholder${result.nextLink}`
+          const nextLinkUrl = new URL(
+            result.nextLink,
+            typeof window !== "undefined" ? window.location.href : "https://localhost"
           );
-
-          // The SDK may surface the cookie directly on the result object.
-          // Fall back to parsing from the nextLink URL.
-          const rawCookie =
-            (result as unknown as Record<string, unknown>)[
-              "@Microsoft.Dynamics.CRM.fetchxmlpagingcookie"
-            ] as string | undefined;
-
-          if (rawCookie) {
-            nextCookie = decodeXmlEntities(rawCookie);
-          } else {
-            // The skiptoken parameter contains the percent-encoded cookie.
-            const skipToken = url.searchParams.get("$skiptoken");
-            if (skipToken) {
-              nextCookie = decodeURIComponent(skipToken);
-            }
-          }
+          rawPagingCookie = nextLinkUrl.searchParams.get("$skiptoken") || undefined;
         } catch {
-          // If URL parsing fails, pagination will restart from page 1
-          // (safe degradation — user just won't advance beyond page 1).
-          console.warn(
-            "Could not parse paging cookie from nextLink:",
-            result.nextLink
-          );
+          // Keep the original continuation state so the error below is clear.
         }
+      }
+
+      const nextCookie = getFetchXmlPagingCookie(rawPagingCookie);
+
+      if (result.nextLink && !nextCookie) {
+        throw new Error(
+          "Dataverse returned another page but no FetchXML paging cookie was available."
+        );
       }
 
       console.log(
@@ -1067,7 +1077,7 @@ export class OpportunityService {
         rows,
         totalCountEstimate:
           result.entities.length,
-        more: Boolean(result.nextLink && nextCookie),
+        more: Boolean(result.nextLink || nextCookie),
         pagingCookie: nextCookie
       };
     } catch (error) {

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest>
-  <control namespace="Contoso.PCF" constructor="OpportunityFYTDComparison" version="1.0.2" display-name-key="Opportunity FYTD Comparison" description-key="Fiscal year-to-date Opportunity comparison with controlled drill-down" control-type="standard">
+  <control namespace="SCC.PCF" constructor="FYTDComparison" version="1.0.9" display-name-key="FYTD Comparison" description-key="Fiscal year-to-date Opportunity comparison with controlled drill-down" control-type="standard">
     <data-set name="opportunities" display-name-key="Opportunities" cds-data-set-options="displayCommandBar:true;displayViewSelector:true;displayQuickFind:true" />
     <property name="fiscalYearStartMonth" display-name-key="Fiscal Year Start Month" description-key="1 through 12; April is 4" of-type="Whole.None" usage="input" required="false" default-value="4" />
     <property name="fiscalYearStartDay" display-name-key="Fiscal Year Start Day" description-key="Day within the fiscal start month" of-type="Whole.None" usage="input" required="false" default-value="1" />

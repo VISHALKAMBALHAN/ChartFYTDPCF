@@ -162,6 +162,8 @@ export class RevenueChart {
     const heightPercent = Math.min(100, Math.max(value > 0 ? (value / max) * 100 : 0.8, 0.8));
     bar.style.height = `${heightPercent}%`;
     bar.title = `${periodLabel} (${statusLabel}): ${formatCurrency(value)}`;
+    bar.setAttribute("aria-label", `${periodLabel}, ${statusLabel}: ${formatCurrency(value)}`);
+    bar.setAttribute("aria-pressed", String(isSelected));
     bar.onclick = () => onSelect(key, status);
 
     col.appendChild(bar);

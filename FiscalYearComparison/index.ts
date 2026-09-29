@@ -15,7 +15,7 @@ function escapeXml(text: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export class OpportunityFYTDComparison implements ComponentFramework.StandardControl<IInputs, IOutputs> {
+export class FYTDComparison implements ComponentFramework.StandardControl<IInputs, IOutputs> {
   private context!: ComponentFramework.Context<IInputs>;
   private container!: HTMLDivElement;
   private config!: FiscalConfig;
@@ -45,6 +45,8 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
   private isChartDropdownOpen = false;
   private isChartActionsMenuOpen = false;
   private isChartPanelHidden = false;
+  private toolbarMenu?: "columns" | "filters";
+  private hiddenDetailColumns = new Set<string>();
 
   // FYTD Revenue Chart Data
   private periods: FiscalPeriod[] = [];
@@ -60,9 +62,15 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
   private detailRows: OpportunityRow[] = [];
   private totalCountEstimate = 5000;
   private page = 1;
-  private more = false;
+  private pageSize = 50;
+  private more = true;
+  private loadingDetails = false;
+  private loadingMore = false;
   private search = "";
-  private pagingCookie?: string;       // Dataverse FetchXML paging cookie for page > 1
+  private searchDebounce?: number;
+  private pagingCookie?: string;
+  private detailRequestId = 0;
+  private detailGrid = new DetailGrid();
   private service?: OpportunityService;
   private destroyed = false;
 
@@ -134,7 +142,6 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
 
       this.data = fytdData;
       this.q1Data = q1Data;
-      this.page = 1;
       this.search = "";
       await this.loadDetails();
     } catch (error) {
@@ -143,41 +150,115 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
   }
 
   private async loadDetails(): Promise<void> {
-    if (!this.service) return;
+    if (!this.service) {
+      return;
+    }
+
+    const requestId = ++this.detailRequestId;
+    this.page = 1;
+    this.detailRows = [];
+    this.pagingCookie = undefined;
+    this.more = true;
+    this.loadingDetails = true;
+    this.loadingMore = false;
+    this.detailGrid.resetScroll();
+    this.render();
+
     const selectedPeriod = this.periods.find(p => p.key === this.selectedPeriodKey);
+    let failed = false;
     try {
       const result = await this.service.getDetails(
         selectedPeriod,
         this.selectedStatus,
         this.page,
-        25,
+        this.pageSize,
         this.search,
-        this.page === 1 ? undefined : this.pagingCookie
+        undefined
       );
+
+      if (requestId !== this.detailRequestId || this.destroyed) {
+        return;
+      }
+
       this.detailRows = result.rows;
       this.totalCountEstimate = result.totalCountEstimate;
       this.more = result.more;
       this.pagingCookie = result.pagingCookie;
-      if (!this.destroyed) {
-        this.render();
-      }
+      this.page += 1;
     } catch (error) {
-      this.renderError(error);
+      failed = true;
+      if (requestId === this.detailRequestId && !this.destroyed) {
+        this.renderError(error);
+      }
+    } finally {
+      if (requestId === this.detailRequestId) {
+        this.loadingDetails = false;
+        if (!failed && !this.destroyed) {
+          this.render();
+        }
+      }
     }
   }
 
-  private selectFilter(key: "current" | "previous", status: number): void {
-    if (this.selectedPeriodKey === key && this.selectedStatus === status) {
-      this.selectedPeriodKey = undefined;
-      this.selectedStatus = undefined;
-    } else {
-      this.selectedPeriodKey = key;
-      this.selectedStatus = status;
+  private async loadMore(): Promise<void> {
+    if (!this.service || this.loadingDetails || this.loadingMore || !this.more) {
+      return;
     }
-    // Reset paging state when filter changes
-    this.page = 1;
-    this.pagingCookie = undefined;
-    this.loadDetails();
+
+    const requestId = this.detailRequestId;
+    const selectedPeriod = this.periods.find(p => p.key === this.selectedPeriodKey);
+    this.loadingMore = true;
+    this.render();
+    let failed = false;
+
+    try {
+      const result = await this.service.getDetails(
+        selectedPeriod,
+        this.selectedStatus,
+        this.page,
+        this.pageSize,
+        this.search,
+        this.pagingCookie
+      );
+
+      if (requestId !== this.detailRequestId || this.destroyed) {
+        return;
+      }
+
+      this.detailRows = this.detailRows.concat(result.rows);
+      this.totalCountEstimate = result.totalCountEstimate;
+      this.pagingCookie = result.pagingCookie;
+      this.more = result.more;
+      this.page += 1;
+    } catch (error) {
+      failed = true;
+      if (requestId === this.detailRequestId && !this.destroyed) {
+        this.renderError(error);
+      }
+    } finally {
+      if (requestId === this.detailRequestId) {
+        this.loadingMore = false;
+        if (!failed && !this.destroyed) {
+          this.render();
+        }
+      }
+    }
+  }
+
+  private selectFilter(key: "current" | "previous", status: number | undefined): void {
+    this.selectedPeriodKey = key;
+    this.selectedStatus = status;
+    void this.loadDetails();
+  }
+
+  private setSearch(value: string): void {
+    const nextSearch = value.trim();
+    if (nextSearch === this.search) {
+      return;
+    }
+
+    this.search = nextSearch;
+    void this.loadDetails();
   }
 
   private render(): void {
@@ -208,6 +289,7 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
     const editColsBtn = document.createElement("button");
     editColsBtn.type = "button";
     editColsBtn.className = "command-btn";
+    editColsBtn.setAttribute("aria-expanded", String(this.toolbarMenu === "columns"));
     editColsBtn.innerHTML = `
       <span class="cmd-icon">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -221,6 +303,7 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
     const editFiltersBtn = document.createElement("button");
     editFiltersBtn.type = "button";
     editFiltersBtn.className = "command-btn";
+    editFiltersBtn.setAttribute("aria-expanded", String(this.toolbarMenu === "filters"));
     editFiltersBtn.innerHTML = `
       <span class="cmd-icon">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#0078d4" stroke-width="1.2">
@@ -248,25 +331,115 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
     keywordInput.placeholder = "Filter by keyword";
     keywordInput.value = this.search;
     keywordInput.setAttribute("aria-label", "Filter by keyword");
+    keywordInput.oninput = () => {
+      if (this.searchDebounce !== undefined) {
+        window.clearTimeout(this.searchDebounce);
+      }
+      this.searchDebounce = window.setTimeout(
+        () => this.setSearch(keywordInput.value),
+        300
+      );
+    };
     keywordInput.onkeydown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
-        this.search = keywordInput.value.trim();
-        this.page = 1;
-        this.pagingCookie = undefined;  // reset cookie on new search
-        this.loadDetails();
+        if (this.searchDebounce !== undefined) {
+          window.clearTimeout(this.searchDebounce);
+        }
+        this.setSearch(keywordInput.value);
       }
     };
-    keywordInput.onchange = () => {
-      this.search = keywordInput.value.trim();
-      this.page = 1;
-      this.pagingCookie = undefined;  // reset cookie on new search
-      this.loadDetails();
+
+    editColsBtn.onclick = () => {
+      this.toolbarMenu = this.toolbarMenu === "columns" ? undefined : "columns";
+      this.render();
+    };
+    editFiltersBtn.onclick = () => {
+      this.toolbarMenu = this.toolbarMenu === "filters" ? undefined : "filters";
+      this.render();
     };
 
     searchWrapper.append(searchIcon, keywordInput);
     commands.append(editColsBtn, editFiltersBtn, searchWrapper);
     topbar.append(titleGroup, commands);
     root.appendChild(topbar);
+
+    if (this.toolbarMenu) {
+      const toolbarPanel = document.createElement("div");
+      toolbarPanel.className = "toolbar-popover";
+      toolbarPanel.style.cssText = "position:relative;z-index:20;margin:4px 16px 10px auto;padding:12px;background:#fff;border:1px solid #d2d0ce;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.16);width:max-content;max-width:calc(100% - 32px);font-size:13px";
+
+      if (this.toolbarMenu === "columns") {
+        const title = document.createElement("div");
+        title.textContent = "Choose columns";
+        title.style.cssText = "font-weight:600;margin-bottom:8px";
+        toolbarPanel.appendChild(title);
+        const columnOptions = [
+          ["name", "Topic"], ["customer", "Potential Customer"],
+          ["email", "Email Address"], ["status", "Status"],
+          ["closeDate", "Actual Close Date"], ["revenue", "Actual Revenue"]
+        ];
+        columnOptions.forEach(([key, label]) => {
+          const option = document.createElement("label");
+          option.style.cssText = "display:flex;align-items:center;gap:7px;padding:4px 0;cursor:pointer";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = !this.hiddenDetailColumns.has(key);
+          checkbox.onchange = () => {
+            if (checkbox.checked) this.hiddenDetailColumns.delete(key);
+            else this.hiddenDetailColumns.add(key);
+            this.render();
+          };
+          option.append(checkbox, document.createTextNode(label));
+          toolbarPanel.appendChild(option);
+        });
+      } else {
+        const title = document.createElement("div");
+        title.textContent = "Filter opportunities";
+        title.style.cssText = "font-weight:600;margin-bottom:8px";
+        toolbarPanel.appendChild(title);
+
+        const periodSelect = document.createElement("select");
+        periodSelect.setAttribute("aria-label", "Fiscal period");
+        this.periods.forEach(period => {
+          const option = document.createElement("option");
+          option.value = period.key;
+          option.textContent = `${period.label} FYTD`;
+          option.selected = period.key === this.selectedPeriodKey;
+          periodSelect.appendChild(option);
+        });
+        periodSelect.onchange = () => {
+          this.toolbarMenu = undefined;
+          this.selectFilter(periodSelect.value as "current" | "previous", this.selectedStatus);
+        };
+
+        const statusSelect = document.createElement("select");
+        statusSelect.setAttribute("aria-label", "Opportunity status");
+        const statuses: Array<{ value: string; label: string }> = [
+          { value: "all", label: "All statuses" },
+          { value: "0", label: "Open" },
+          { value: String(this.config.wonStatus), label: "Won" },
+          { value: "2", label: "Lost" }
+        ];
+        statuses.forEach(item => {
+          const option = document.createElement("option");
+          option.value = item.value;
+          option.textContent = item.label;
+          option.selected = item.value === (this.selectedStatus === undefined ? "all" : String(this.selectedStatus));
+          statusSelect.appendChild(option);
+        });
+        statusSelect.onchange = () => {
+          this.toolbarMenu = undefined;
+          const nextStatus = statusSelect.value === "all" ? undefined : Number(statusSelect.value);
+          this.selectFilter(this.selectedPeriodKey || "current", nextStatus);
+        };
+
+        [periodSelect, statusSelect].forEach(select => {
+          select.style.cssText = "display:block;min-width:180px;margin:6px 0;padding:6px;border:1px solid #8a8886;border-radius:2px;background:#fff";
+          toolbarPanel.appendChild(select);
+        });
+      }
+      root.appendChild(toolbarPanel);
+    }
 
     // 2. Split Comparison Layout
     const comparison = document.createElement("div");
@@ -484,24 +657,17 @@ export class OpportunityFYTDComparison implements ComponentFramework.StandardCon
     const recordsPane = document.createElement("section");
     recordsPane.className = "records-pane";
 
-    const detailGridComponent = new DetailGrid();
-    const renderedGrid = detailGridComponent.render(
+    const renderedGrid = this.detailGrid.render(
       this.detailRows,
-      this.page,
       this.totalCountEstimate,
       this.more,
+      this.loadingMore,
+      this.loadingDetails,
       {
-        refresh: () => this.loadDetails(),
-        changePage: (newPage: number) => {
-          // When going back to page 1, clear the stored cookie so
-          // Dataverse returns the first page cleanly.
-          if (newPage === 1) {
-            this.pagingCookie = undefined;
-          }
-          this.page = newPage;
-          this.loadDetails();
-        }
-      }
+        refresh: () => { void this.loadDetails(); },
+        loadMore: () => this.loadMore()
+      },
+      this.hiddenDetailColumns
     );
 
     recordsPane.appendChild(renderedGrid);
