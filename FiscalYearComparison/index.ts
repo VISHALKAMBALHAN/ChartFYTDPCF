@@ -4,7 +4,7 @@ import { Q1ComparisonChart } from "./components/Q1Chart";
 import { DetailGrid } from "./components/DetailGrid";
 import { FiscalConfig, FiscalPeriod, OpportunityRow, RenewalLicenseComparison, StatusRevenue, ChartOption } from "./models/Types";
 import { getFYTDPeriods, getQ1ComparisonPeriods } from "./utils/FiscalDate";
-import { OpportunityService } from "./services/DataverseService";
+import { OpportunityService, mergeUniqueRows } from "./services/DataverseService";
 
 function escapeXml(text: string): string {
   return text
@@ -15,7 +15,7 @@ function escapeXml(text: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export class FYTDComparison implements ComponentFramework.StandardControl<IInputs, IOutputs> {
+export class FYTDComparison12 implements ComponentFramework.StandardControl<IInputs, IOutputs> {
   private context!: ComponentFramework.Context<IInputs>;
   private container!: HTMLDivElement;
   private config!: FiscalConfig;
@@ -225,7 +225,7 @@ export class FYTDComparison implements ComponentFramework.StandardControl<IInput
         return;
       }
 
-      this.detailRows = this.detailRows.concat(result.rows);
+      this.detailRows = mergeUniqueRows(this.detailRows, result.rows);
       this.totalCountEstimate = result.totalCountEstimate;
       this.pagingCookie = result.pagingCookie;
       this.more = result.more;
@@ -665,7 +665,8 @@ export class FYTDComparison implements ComponentFramework.StandardControl<IInput
       this.loadingDetails,
       {
         refresh: () => { void this.loadDetails(); },
-        loadMore: () => this.loadMore()
+        loadMore: () => this.loadMore(),
+        onGridChange: () => this.render()
       },
       this.hiddenDetailColumns
     );

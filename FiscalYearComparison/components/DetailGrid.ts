@@ -1,11 +1,47 @@
 import { OpportunityRow } from "../models/Types";
 import { formatCurrency } from "./Chart";
 
+export type AggregateMode = "none" | "average" | "maximum" | "minimum" | "sum";
+
 export class DetailGrid {
   private selectedIds: Set<string> = new Set();
+  private sort?: { key: string; direction: 1 | -1 };
+  private groupKey?: string;
+  private columnFilters: Record<string, string> = {};
+  private columnWidths: Record<string, number> = {};
+  private columnOrder = ["name", "customer", "email", "status", "closeDate", "revenue"];
+  private columnTotals: Record<string, AggregateMode> = {};
+  private openMenu?: string;
   private scrollContainer?: HTMLElement;
   private savedScrollTop = 0;
   private preserveScrollTop = true;
+  private loadTriggered = false;
+
+  public static getAggregateValue<T extends object>(
+    rows: T[],
+    key: string,
+    mode: AggregateMode
+  ): number {
+    const values = rows
+      .map(row => Number((row as Record<string, unknown>)[key]))
+      .filter(value => Number.isFinite(value));
+
+    if (!values.length) {
+      return 0;
+    }
+
+    switch (mode) {
+      case "average":
+        return values.reduce((sum, value) => sum + value, 0) / values.length;
+      case "maximum":
+        return Math.max(...values);
+      case "minimum":
+        return Math.min(...values);
+      case "sum":
+      default:
+        return values.reduce((sum, value) => sum + value, 0);
+    }
+  }
 
   public resetScroll(): void {
     this.savedScrollTop = 0;
@@ -22,14 +58,10 @@ export class DetailGrid {
       refresh(): void;
       loadMore(): Promise<void>;
       onRowSelect?(row: OpportunityRow): void;
+      onGridChange?(): void;
     },
     hiddenColumns: Set<string> = new Set()
   ): HTMLElement {
-    // Keep the current scroll position when another Dataverse batch is appended.
-    if (this.scrollContainer && this.preserveScrollTop) {
-      this.savedScrollTop = this.scrollContainer.scrollTop;
-    }
-
     const root = document.createElement("div");
     root.className = "fluent-grid-container";
 
@@ -44,6 +76,11 @@ export class DetailGrid {
     tableWrapper.style.position = "relative";
 
     this.scrollContainer = tableWrapper;
+    tableWrapper.addEventListener("scroll", () => {
+      if (this.preserveScrollTop) {
+        this.savedScrollTop = tableWrapper.scrollTop;
+      }
+    }, { passive: true });
 
     const table = document.createElement("table");
     table.className = "fluent-table";
@@ -117,13 +154,43 @@ export class DetailGrid {
       },
     ];
 
+    columns.sort((a, b) => this.columnOrder.indexOf(a.key) - this.columnOrder.indexOf(b.key));
+    const valueFor = (row: OpportunityRow, key: string): string => {
+      const value = row[key as keyof OpportunityRow];
+      if (value instanceof Date) return value.toLocaleDateString();
+      if (value === null || value === undefined) return "";
+      return String(value);
+    };
+    let displayRows = rows.filter(row => columns.every(col => {
+      const filter = this.columnFilters[col.key]?.toLocaleLowerCase();
+      return !filter || valueFor(row, col.key).toLocaleLowerCase().includes(filter);
+    }));
+    if (this.sort) {
+      const { key, direction } = this.sort;
+      displayRows = displayRows.slice().sort((a, b) => {
+        const av = a[key as keyof OpportunityRow];
+        const bv = b[key as keyof OpportunityRow];
+        const cmp = av instanceof Date && bv instanceof Date ? av.getTime() - bv.getTime()
+          : typeof av === "number" && typeof bv === "number" ? av - bv
+          : valueFor(a, key).localeCompare(valueFor(b, key), undefined, { numeric: true, sensitivity: "base" });
+        return cmp * direction;
+      });
+    }
+    if (this.groupKey) {
+      const groupKey = this.groupKey;
+      displayRows = displayRows.slice().sort((a, b) =>
+        valueFor(a, groupKey).localeCompare(valueFor(b, groupKey), undefined, { numeric: true, sensitivity: "base" })
+      );
+    }
+
     columns.forEach(col => {
       const th = document.createElement("th");
       th.className = `col-${col.key}`;
       th.hidden = hiddenColumns.has(col.key);
       th.style.position = "sticky";
       th.style.top = "0";
-      th.style.zIndex = "2";
+      th.style.zIndex = this.openMenu === col.key ? "20" : "2";
+      th.style.width = this.columnWidths[col.key] ? `${this.columnWidths[col.key]}px` : "";
 
       const headerContent = document.createElement("div");
       headerContent.className = "th-content";
@@ -133,6 +200,15 @@ export class DetailGrid {
       text.textContent = col.truncateLabel || col.label;
       text.title = col.label;
       headerContent.appendChild(text);
+
+      const menuButton = document.createElement("button");
+      menuButton.type = "button";
+      menuButton.className = "grid-column-menu-button";
+      menuButton.setAttribute("aria-label", `${col.label} column options`);
+      menuButton.setAttribute("aria-expanded", String(this.openMenu === col.key));
+      menuButton.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`;
+      menuButton.onclick = e => { e.stopPropagation(); this.openMenu = this.openMenu === col.key ? undefined : col.key; actions.onGridChange?.(); };
+      headerContent.appendChild(menuButton);
 
       if (col.sortIcon) {
         const sort = document.createElement("span");
@@ -147,20 +223,79 @@ export class DetailGrid {
         headerContent.appendChild(sort);
       }
 
-      if (col.hasFilter) {
-        const chevron = document.createElement("span");
-        chevron.className = "th-chevron";
-        chevron.innerHTML = `
-          <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-            <path d="M2 3.5L5 6.5L8 3.5"
-                  stroke="#605e5c" stroke-width="1.3"
-                  stroke-linecap="round"/>
-          </svg>
-        `;
-        headerContent.appendChild(chevron);
-      }
-
       th.appendChild(headerContent);
+      if (this.openMenu === col.key) {
+        const menu = document.createElement("div");
+        menu.className = "grid-column-menu";
+        menu.setAttribute("role", "menu");
+        const addItem = (label: string, action: () => void, icon: string) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "grid-column-menu-item";
+          button.innerHTML = `<span aria-hidden="true">${icon}</span><span>${label}</span>`;
+          button.onclick = e => { e.stopPropagation(); action(); this.openMenu = undefined; actions.onGridChange?.(); };
+          menu.appendChild(button);
+        };
+        addItem("A to Z", () => { this.sort = { key: col.key, direction: 1 }; }, "↑");
+        addItem("Z to A", () => { this.sort = { key: col.key, direction: -1 }; }, "↓");
+        addItem(this.groupKey === col.key ? "Ungroup" : "Group by", () => { this.groupKey = this.groupKey === col.key ? undefined : col.key; }, "☷");
+        const filterWrap = document.createElement("label");
+        filterWrap.className = "grid-column-filter";
+        filterWrap.innerHTML = `<span>Filter by</span>`;
+        const filterInput = document.createElement("input");
+        filterInput.type = "search";
+        filterInput.placeholder = `Filter ${col.label}`;
+        filterInput.value = this.columnFilters[col.key] || "";
+        filterInput.setAttribute("aria-label", `Filter ${col.label}`);
+        filterInput.onchange = () => { this.columnFilters[col.key] = filterInput.value; actions.onGridChange?.(); };
+        filterWrap.appendChild(filterInput);
+        menu.appendChild(filterWrap);
+        const widthLabel = document.createElement("label");
+        widthLabel.className = "grid-column-filter";
+        widthLabel.textContent = "Column width";
+        const widthInput = document.createElement("input");
+        widthInput.type = "number"; widthInput.min = "70"; widthInput.max = "600";
+        widthInput.value = String(this.columnWidths[col.key] || Math.round(th.getBoundingClientRect().width || 160));
+        widthInput.setAttribute("aria-label", `${col.label} column width`);
+        widthInput.onchange = () => { this.columnWidths[col.key] = Math.max(70, Math.min(600, Number(widthInput.value) || 160)); actions.onGridChange?.(); };
+        widthLabel.appendChild(widthInput); menu.appendChild(widthLabel);
+
+        if (col.key === "revenue") {
+          const totalsHeader = document.createElement("div");
+          totalsHeader.className = "grid-column-filter";
+          totalsHeader.textContent = "Totals";
+          menu.appendChild(totalsHeader);
+
+          const totalOptions: Array<{ label: string; value: AggregateMode }> = [
+            { label: "None", value: "none" },
+            { label: "Average", value: "average" },
+            { label: "Maximum", value: "maximum" },
+            { label: "Minimum", value: "minimum" },
+            { label: "Sum", value: "sum" }
+          ];
+
+          totalOptions.forEach(option => {
+            const optionButton = document.createElement("button");
+            optionButton.type = "button";
+            optionButton.className = "grid-column-menu-item";
+            optionButton.innerHTML = `<span aria-hidden="true">${this.columnTotals[col.key] === option.value ? "✓" : ""}</span><span>${option.label}</span>`;
+            optionButton.onclick = e => {
+              e.stopPropagation();
+              this.columnTotals[col.key] = option.value;
+              if (option.value === "none") {
+                delete this.columnTotals[col.key];
+              }
+              actions.onGridChange?.();
+            };
+            menu.appendChild(optionButton);
+          });
+        }
+
+        addItem("Move left", () => { this.moveColumn(col.key, -1); }, "←");
+        addItem("Move right", () => { this.moveColumn(col.key, 1); }, "→");
+        menu.onclick = e => e.stopPropagation();
+        th.appendChild(menu);
+      }
       headerRow.appendChild(th);
     });
 
@@ -170,14 +305,27 @@ export class DetailGrid {
     // Table Body
     const tbody = document.createElement("tbody");
 
-    if (!rows.length) {
+    if (!displayRows.length) {
       const emptyRow = document.createElement("tr");
       emptyRow.className = "empty-row";
       emptyRow.innerHTML =
         `<td colspan="7" class="empty-cell">${loadingDetails ? "Loading opportunities..." : "No opportunities found for the selected view."}</td>`;
       tbody.appendChild(emptyRow);
     } else {
-      rows.forEach(row => {
+      let previousGroup = "";
+      displayRows.forEach(row => {
+        if (this.groupKey) {
+          const groupValue = valueFor(row, this.groupKey) || "(Blank)";
+          if (groupValue !== previousGroup) {
+            previousGroup = groupValue;
+            const groupRow = document.createElement("tr");
+            groupRow.className = "grid-group-row";
+            const groupCell = document.createElement("td");
+            groupCell.colSpan = columns.length + 1;
+            groupCell.textContent = `${columns.find(c => c.key === this.groupKey)?.label}: ${groupValue}`;
+            groupRow.appendChild(groupCell); tbody.appendChild(groupRow);
+          }
+        }
         const tr = document.createElement("tr");
         tr.className = "fluent-row";
 
@@ -281,8 +429,46 @@ export class DetailGrid {
           row.revenue > 0 ? formatCurrency(row.revenue) : "";
         tr.appendChild(tdRevenue);
 
+        const cellClass: Record<string, string> = {
+          name: "col-topic", customer: "col-customer", email: "col-email",
+          status: "col-status", closeDate: "col-date", revenue: "col-revenue"
+        };
+        this.columnOrder.forEach(key => {
+          const cell = tr.querySelector<HTMLElement>(`.${cellClass[key]}`);
+          if (cell) {
+            if (this.columnWidths[key]) cell.style.width = `${this.columnWidths[key]}px`;
+            tr.appendChild(cell);
+          }
+        });
+
         tbody.appendChild(tr);
       });
+    }
+
+    const totalMode = this.columnTotals.revenue;
+    if (totalMode && totalMode !== "none") {
+      const totalRow = document.createElement("tr");
+      totalRow.className = "grid-group-row";
+
+      const totalLabel = document.createElement("td");
+      totalLabel.colSpan = 1;
+      totalLabel.textContent = "Total";
+      totalRow.appendChild(totalLabel);
+
+      for (let index = 1; index < columns.length + 1; index++) {
+        const cell = document.createElement("td");
+        cell.className = "grid-total-cell";
+
+        if (index === columns.findIndex(c => c.key === "revenue") + 1) {
+          const totalValue = DetailGrid.getAggregateValue(displayRows, "revenue", totalMode);
+          cell.textContent = formatCurrency(totalValue);
+          cell.style.fontWeight = "600";
+        }
+
+        totalRow.appendChild(cell);
+      }
+
+      tbody.appendChild(totalRow);
     }
 
     table.appendChild(tbody);
@@ -296,11 +482,10 @@ export class DetailGrid {
 
     // Infinite-scroll trigger.
     // The user sees only the table's single scrollbar.
-    let loadTriggered = false;
     let loadObserver: IntersectionObserver | undefined;
 
     const tryLoadMore = (): void => {
-      if (loadTriggered || loadingMore || !more) {
+      if (this.loadTriggered || loadingMore || !more) {
         return;
       }
 
@@ -310,10 +495,10 @@ export class DetailGrid {
         tableWrapper.clientHeight;
 
       if (distanceFromBottom <= 200) {
-        loadTriggered = true;
+        this.loadTriggered = true;
         loadObserver?.disconnect();
         actions.loadMore().finally(() => {
-          loadTriggered = false;
+          this.loadTriggered = false;
         });
       }
     };
@@ -427,6 +612,14 @@ export class DetailGrid {
         }
       }
     });
+  }
+
+  private moveColumn(key: string, offset: number): void {
+    const index = this.columnOrder.indexOf(key);
+    const target = index + offset;
+    if (index < 0 || target < 0 || target >= this.columnOrder.length) return;
+    this.columnOrder.splice(index, 1);
+    this.columnOrder.splice(target, 0, key);
   }
 
   private formatDate(d: Date): string {

@@ -26,11 +26,11 @@ export class RevenueChart {
     const currentLabel = currentPeriod ? currentPeriod.label : "FY2027";
     const prevLabel = prevPeriod ? prevPeriod.label : "FY2026";
 
-    // Compute max for dynamic scale (round up to next clean 10 Cr or reasonable multiple)
-    // The user screenshot has ticks: 0.00, 10,00,00,000.00, 20,00,00,000.00, 30,00,00,000.00
+    // Keep four readable intervals and add headroom above the largest revenue value.
     const rawMax = Math.max(100, ...displayData.flatMap(m => [m.current, m.previous]));
-    const yMax = 300000000; // 30 Cr tick ceiling like screenshot or scaled
-    const ticks = [300000000, 200000000, 100000000, 0];
+    const tickStep = this.getYMax(rawMax / 4);
+    const yMax = tickStep * 4;
+    const ticks = [4, 3, 2, 1, 0].map(interval => tickStep * interval);
 
     // Main Chart Box with Y-Axis and Plot Area
     const chartBody = document.createElement("div");

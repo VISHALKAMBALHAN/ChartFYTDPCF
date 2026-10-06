@@ -329,6 +329,15 @@ const getFormatted = (
     ""
   );
 
+export const mergeUniqueRows = (
+  existingRows: OpportunityRow[],
+  incomingRows: OpportunityRow[]
+): OpportunityRow[] => {
+  const seenIds = new Set(existingRows.map(row => row.id));
+  const uniqueIncoming = incomingRows.filter(row => !seenIds.has(row.id));
+  return [...existingRows, ...uniqueIncoming];
+};
+
 export class OpportunityService {
   public constructor(
     private readonly api: WebApi,
